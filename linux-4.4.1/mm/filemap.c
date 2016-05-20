@@ -35,7 +35,6 @@
 #include <linux/cleancache.h>
 #include <linux/rmap.h>
 #include "internal.h"
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/filemap.h>
 
@@ -46,6 +45,7 @@
 
 #include <asm/mman.h>
 
+extern int global_pagerep_algo;
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
  * though.
@@ -681,6 +681,8 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 {
 	void *shadow = NULL;
 	int ret;
+	
+	//printk("Add to page cache lru called\n");
 
 	__set_page_locked(page);
 	ret = __add_to_page_cache_locked(page, mapping, offset,
@@ -716,6 +718,9 @@ struct page *__page_cache_alloc(gfp_t gfp)
 			cpuset_mems_cookie = read_mems_allowed_begin();
 			n = cpuset_mem_spread_node();
 			page = __alloc_pages_node(n, gfp, 0);
+			page->refTime[0] = 0;
+			page->refTime[1] = 0;
+			page->heat = 0;
 		} while (!page && read_mems_allowed_retry(cpuset_mems_cookie));
 
 		return page;
@@ -1106,6 +1111,15 @@ repeat:
 }
 EXPORT_SYMBOL(find_lock_entry);
 
+static void setReferenceTime(struct page *page)
+{
+	struct timespec tp;
+	get_monotonic_boottime(&tp);
+	page->refTime[0] = tp.tv_sec;
+	page->refTime[1] = 0;
+	page->heat = 0;	
+}
+
 /**
  * pagecache_get_page - find and get a page reference
  * @mapping: the address_space to search
@@ -1133,6 +1147,7 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
 	int fgp_flags, gfp_t gfp_mask)
 {
 	struct page *page;
+	//printk("Read page from cache\n");
 
 repeat:
 	page = find_get_entry(mapping, offset);
@@ -1175,12 +1190,26 @@ no_page:
 		if (!page)
 			return NULL;
 
+		page->refTime[0] = 0;
+		page->refTime[1] = 0;
+		page->heat = 0;
+
 		if (WARN_ON_ONCE(!(fgp_flags & FGP_LOCK)))
 			fgp_flags |= FGP_LOCK;
 
+		if (global_pagerep_algo==LRUK) {
+			if (fgp_flags * FGP_ACCESSED)
+			{
+				setReferenceTime(page);
+				__SetPageReferenced(page);
+
+			}
+		}
+		else {
 		/* Init accessed so avoid atomic mark_page_accessed later */
-		if (fgp_flags & FGP_ACCESSED)
-			__SetPageReferenced(page);
+			if (fgp_flags & FGP_ACCESSED)
+				__SetPageReferenced(page);
+		}	
 
 		err = add_to_page_cache_lru(page, mapping, offset,
 				gfp_mask & GFP_RECLAIM_MASK);
@@ -1721,6 +1750,12 @@ no_cached_page:
 			error = -ENOMEM;
 			goto out;
 		}
+
+		page->refTime[0] = 0;
+                page->refTime[1] = 0;
+                page->heat = 0;
+
+
 		error = add_to_page_cache_lru(page, mapping, index,
 				mapping_gfp_constraint(mapping, GFP_KERNEL));
 		if (error) {
@@ -1822,6 +1857,11 @@ static int page_cache_read(struct file *file, pgoff_t offset)
 		page = page_cache_alloc_cold(mapping);
 		if (!page)
 			return -ENOMEM;
+
+		page->refTime[0] = 0;
+                page->refTime[1] = 0;
+                page->heat = 0;
+
 
 		ret = add_to_page_cache_lru(page, mapping, offset,
 				mapping_gfp_constraint(mapping, GFP_KERNEL));
@@ -2216,6 +2256,12 @@ repeat:
 		page = __page_cache_alloc(gfp | __GFP_COLD);
 		if (!page)
 			return ERR_PTR(-ENOMEM);
+	        
+		page->refTime[0] = 0;
+                page->refTime[1] = 0;
+                page->heat = 0;
+
+	
 		err = add_to_page_cache_lru(page, mapping, index, gfp);
 		if (unlikely(err)) {
 			page_cache_release(page);

@@ -45,6 +45,7 @@
 #include <trace/events/migrate.h>
 
 #include "internal.h"
+extern int global_pagerep_algo;
 
 /*
  * migrate_prep() needs to be called before we start compiling a list of pages
@@ -532,8 +533,19 @@ void migrate_page_copy(struct page *newpage, struct page *page)
 
 	if (PageError(page))
 		SetPageError(newpage);
-	if (PageReferenced(page))
+	
+	if(global_pagerep_algo == LRUK)
+	{
+		newpage->heat = page->heat;
+		newpage->refTime[0] = page->refTime[0];
+		newpage->refTime[1] = page->refTime[1];
 		SetPageReferenced(newpage);
+
+	}
+	else {
+		if (PageReferenced(page))
+			SetPageReferenced(newpage);
+	}
 	if (PageUptodate(page))
 		SetPageUptodate(newpage);
 	if (TestClearPageActive(page)) {

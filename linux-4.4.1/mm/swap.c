@@ -33,11 +33,15 @@
 #include <linux/uio.h>
 #include <linux/hugetlb.h>
 #include <linux/page_idle.h>
-
+#include<linux/timekeeping.h>
+#include<linux/time.h>
 #include "internal.h"
+//#include <linux/sysctl_pagerep.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/pagemap.h>
+
+#include<asm/fpu/api.h>
 
 /* How many pages do we try to swap or page in/out together? */
 int page_cluster;
@@ -50,6 +54,15 @@ static DEFINE_PER_CPU(struct pagevec, lru_deactivate_file_pvecs);
  * This path almost never happens for VM activity - pages are normally
  * freed via pagevecs.  But it gets used by networking.
  */
+
+int global_pagerep_algo=1;
+
+void setPageRepAlgo(int algo)
+{
+	global_pagerep_algo = algo;
+}
+EXPORT_SYMBOL(setPageRepAlgo);
+
 static void __page_cache_release(struct page *page)
 {
 	if (PageLRU(page)) {
@@ -502,20 +515,22 @@ static void update_page_reclaim_stat(struct lruvec *lruvec,
 static void __activate_page(struct page *page, struct lruvec *lruvec,
 			    void *arg)
 {
+	
 	if (PageLRU(page) && !PageActive(page) && !PageUnevictable(page)) {
 		int file = page_is_file_cache(page);
-		int lru = page_lru_base_type(page);
-
-		del_page_from_lru_list(page, lruvec, lru);
+                int lru = page_lru_base_type(page);
+	
+		del_page_from_lru_list(page,lruvec,lru);
 		SetPageActive(page);
 		lru += LRU_ACTIVE;
-		add_page_to_lru_list(page, lruvec, lru);
+		add_page_to_lru_list(page,lruvec,lru);
 		trace_mm_lru_activate(page);
-
 		__count_vm_event(PGACTIVATE);
 		update_page_reclaim_stat(lruvec, file, 1);
+	
 	}
 }
+
 
 #ifdef CONFIG_SMP
 static DEFINE_PER_CPU(struct pagevec, activate_page_pvecs);
@@ -592,6 +607,36 @@ static void __lru_cache_activate_page(struct page *page)
 	put_cpu_var(lru_add_pvec);
 }
 
+
+	
+//kernel_fpu_begin();
+/*
+float calculatePageHeat(__kernel_time_t diff)
+{
+	
+	float term,heat,sum;
+	int n, count;
+
+	heat = (float)(2/diff);
+
+	n = term = sum = count = 1;
+
+	while (n <= 100) {
+		term = term * heat/n;
+		sum = sum + term;
+		count = count + 1;
+		if (term < 100)
+			n = 999;
+		else
+			n = n + 1;
+	}
+	sum = (1/sum);
+	sum = 1-sum;
+	
+	return sum;
+	
+}
+*/
 /*
  * Mark a page as having seen activity.
  *
@@ -602,35 +647,78 @@ static void __lru_cache_activate_page(struct page *page)
  * When a newly allocated page is not yet visible, so safe for non-atomic ops,
  * __SetPageReferenced(page) may be substituted for mark_page_accessed(page).
  */
+
 void mark_page_accessed(struct page *page)
 {
-	if (!PageActive(page) && !PageUnevictable(page) &&
-			PageReferenced(page)) {
+	//printk("In mark_page_accessed\n");
+	if(global_pagerep_algo == LRUK) {	
+		//__kernel_time_t diff;
+		//unsigned int term,heat,sum,save;
+		//unsigned int n,count;
+		//struct timespec tp;
+		//static int ct =0;
+		//ct++;
 
-		/*
-		 * If the page is on the LRU, queue it for activation via
-		 * activate_page_pvecs. Otherwise, assume the page is on a
-		 * pagevec, mark it active and it'll be moved to the active
-		 * LRU on the next drain.
-		 */
-		if (PageLRU(page))
-			activate_page(page);
-		else
-			__lru_cache_activate_page(page);
-		ClearPageReferenced(page);
-		if (page_is_file_cache(page))
-			workingset_activation(page);
-	} else if (!PageReferenced(page)) {
-		SetPageReferenced(page);
+		calculatePageHeat(page,true);
+
+       		if (!PageActive(page) && !PageUnevictable(page) &&
+                        page->heat!=0) {
+
+                /*
+                 * If the page is on the LRU, queue it for activation via
+                 * activate_page_pvecs. Otherwise, assume the page is on a
+                 * pagevec, mark it active and it'll be moved to the active
+                 * LRU on the next drain.
+                 */
+                if (PageLRU(page))
+                        activate_page(page);
+                else
+                        __lru_cache_activate_page(page);
+                ClearPageReferenced(page);
+                if (page_is_file_cache(page))
+                        workingset_activation(page);
+        	}
+
+		else if (!PageReferenced(page)) {
+                        SetPageReferenced(page);
+                }	
 	}
+		
+
+	else{
+		if (!PageActive(page) && !PageUnevictable(page) &&
+				PageReferenced(page)) {
+
+			/*
+			 * If the page is on the LRU, queue it for activation via
+			 * activate_page_pvecs. Otherwise, assume the page is on a
+			 * pagevec, mark it active and it'll be moved to the active
+			 * LRU on the next drain.
+			 */
+			if (PageLRU(page))
+				activate_page(page);
+			else
+				__lru_cache_activate_page(page);
+			ClearPageReferenced(page);
+			if (page_is_file_cache(page))
+				workingset_activation(page);
+		} else if (!PageReferenced(page)) {
+			SetPageReferenced(page);
+		}
+	}
+	
 	if (page_is_idle(page))
 		clear_page_idle(page);
 }
+
 EXPORT_SYMBOL(mark_page_accessed);
 
 static void __lru_cache_add(struct page *page)
 {
+	
 	struct pagevec *pvec = &get_cpu_var(lru_add_pvec);
+
+	//printk("In __lru_cache_add\n");
 
 	page_cache_get(page);
 	if (!pagevec_space(pvec))
@@ -711,6 +799,8 @@ void add_page_to_unevictable_list(struct page *page)
 void lru_cache_add_active_or_unevictable(struct page *page,
 					 struct vm_area_struct *vma)
 {
+	//printk("In lru_cache_add_active\n");
+	
 	VM_BUG_ON_PAGE(PageLRU(page), page);
 
 	if (likely((vma->vm_flags & (VM_LOCKED | VM_SPECIAL)) != VM_LOCKED)) {
@@ -759,6 +849,7 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec,
 	int lru, file;
 	bool active;
 
+
 	if (!PageLRU(page))
 		return;
 
@@ -775,9 +866,18 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec,
 
 	del_page_from_lru_list(page, lruvec, lru + active);
 	ClearPageActive(page);
-	ClearPageReferenced(page);
-	add_page_to_lru_list(page, lruvec, lru);
-
+	if(global_pagerep_algo == LRUK) {
+		page->heat=0;
+		page->refTime[0] = 0;
+		page->refTime[1] = 0;
+		ClearPageReferenced(page);
+	}
+	else {
+		ClearPageReferenced(page);
+	}
+      	
+	add_page_to_lru_list(page,lruvec,lru);
+	
 	if (PageWriteback(page) || PageDirty(page)) {
 		/*
 		 * PG_reclaim could be raced with end_page_writeback
@@ -1021,6 +1121,7 @@ void lru_add_page_tail(struct page *page, struct page *page_tail,
 		 * but then correct its position so they all end up in order.
 		 */
 		add_page_to_lru_list(page_tail, lruvec, page_lru(page_tail));
+
 		list_head = page_tail->lru.prev;
 		list_move_tail(&page_tail->lru, list_head);
 	}
@@ -1029,20 +1130,35 @@ void lru_add_page_tail(struct page *page, struct page *page_tail,
 		update_page_reclaim_stat(lruvec, file, PageActive(page_tail));
 }
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
+/*
+static void setReferenceTime(struct page *page, __kernel_time_t sec)
+{	page->refTime[0]=sec;
+	page->refTime[1]=0;
+}
+*/
 
 static void __pagevec_lru_add_fn(struct page *page, struct lruvec *lruvec,
 				 void *arg)
 {
+	//struct sysinfo sinfo;
+//	struct timespec tp;
 	int file = page_is_file_cache(page);
 	int active = PageActive(page);
 	enum lru_list lru = page_lru(page);
 
 	VM_BUG_ON_PAGE(PageLRU(page), page);
 
+//	get_monotonic_boottime(&tp);
+
+//	printk("Uptime:%d\n",tp.tv_sec);
+
 	SetPageLRU(page);
-	add_page_to_lru_list(page, lruvec, lru);
+
+	add_page_to_lru_list(page,lruvec,lru);
+
 	update_page_reclaim_stat(lruvec, file, active);
 	trace_mm_lru_insertion(page, lru);
+	
 }
 
 /*
