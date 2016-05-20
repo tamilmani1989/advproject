@@ -58,12 +58,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
-#define LRUK_THRESHOLD 180
-
-int lruk_threshold = LRUK_THRESHOLD;
-
-extern int global_pagerep_algo;
-
 struct scan_control {
 	/* How many pages shrink_list() should reclaim */
 	unsigned long nr_to_reclaim;
@@ -226,15 +220,6 @@ static unsigned long get_lru_size(struct lruvec *lruvec, enum lru_list lru)
 	return zone_page_state(lruvec_zone(lruvec), NR_LRU_BASE + lru);
 }
 
-
-
-void setLruThreshold(int threshold)
-{
-        lruk_threshold = threshold;
-	printk("Threshold is set:%d\n",lruk_threshold);
-}
-
-EXPORT_SYMBOL(setLruThreshold);
 /*
  * Add a shrinker callback to be called from the vm.
  */
@@ -805,7 +790,6 @@ enum page_references {
 	PAGEREF_ACTIVATE,
 };
 
- 
 static enum page_references page_check_references(struct page *page,
 						  struct scan_control *sc)
 {
@@ -814,12 +798,7 @@ static enum page_references page_check_references(struct page *page,
 
 	referenced_ptes = page_referenced(page, 1, sc->target_mem_cgroup,
 					  &vm_flags);
-	if(global_pagerep_algo == LRUK){
-		calculatePageHeat(page,false);
-		referenced_page = TestClearPageReferenced(page);
-	}
-	else
-		referenced_page = TestClearPageReferenced(page);
+	referenced_page = TestClearPageReferenced(page);
 
 	/*
 	 * Mlock lost the isolation race with us.  Let try_to_unmap()
@@ -845,21 +824,11 @@ static enum page_references page_check_references(struct page *page,
 		 * so that recently deactivated but used pages are
 		 * quickly recovered.
 		 */
-	
-		if(global_pagerep_algo == LRUK) {
-			if ( (page->heat > (2000000/lruk_threshold) ) || referenced_ptes>1) {
-				//printk("put it back to active list:%d:%d\n",page->heat,referenced_ptes);
-				return PAGEREF_ACTIVATE;
-                        }
-		}
-		else {
-			SetPageReferenced(page);
-			if (referenced_page || referenced_ptes > 1)
-			{
-				//printk("Algo 1: Put back:%d:%d\n",referenced_page,referenced_ptes); 
-				return PAGEREF_ACTIVATE;
-			}
-		}
+		SetPageReferenced(page);
+
+		if (referenced_page || referenced_ptes > 1)
+			return PAGEREF_ACTIVATE;
+
 		/*
 		 * Activate file-backed executable pages after first usage.
 		 */
@@ -870,15 +839,9 @@ static enum page_references page_check_references(struct page *page,
 	}
 
 	/* Reclaim if clean, defer dirty pages to writeback */
+	if (referenced_page && !PageSwapBacked(page))
+		return PAGEREF_RECLAIM_CLEAN;
 
-	if(global_pagerep_algo == LRUK) {
-		if( (page->heat > (2000000/lruk_threshold))  && !PageSwapBacked(page))
-			return PAGEREF_RECLAIM_CLEAN;
-	}
-	else{	
-		if (referenced_page && !PageSwapBacked(page))
-			return PAGEREF_RECLAIM_CLEAN;
-	}
 	return PAGEREF_RECLAIM;
 }
 
@@ -1370,7 +1333,6 @@ int __isolate_lru_page(struct page *page, isolate_mode_t mode)
 	return ret;
 }
 
-
 /*
  * zone->lru_lock is heavily contended.  Some of the functions that
  * shrink the lists perform better by taking out a batch of pages
@@ -1417,6 +1379,7 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
 			list_move(&page->lru, dst);
 			nr_taken += nr_pages;
 			break;
+
 		case -EBUSY:
 			/* else it is being freed elsewhere */
 			list_move(&page->lru, src);
@@ -1546,7 +1509,6 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 
 		SetPageLRU(page);
 		lru = page_lru(page);
-
 		add_page_to_lru_list(page, lruvec, lru);
 
 		if (is_active_lru(lru)) {
@@ -1627,7 +1589,6 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 
 	spin_lock_irq(&zone->lru_lock);
 
-	
 	nr_taken = isolate_lru_pages(nr_to_scan, lruvec, &page_list,
 				     &nr_scanned, sc, isolate_mode, lru);
 
@@ -1815,8 +1776,6 @@ static void shrink_active_list(unsigned long nr_to_scan,
 	int file = is_file_lru(lru);
 	struct zone *zone = lruvec_zone(lruvec);
 
-	//printk("in shrink_active_list\n");
-	
 	lru_add_drain();
 
 	if (!sc->may_unmap)
@@ -1828,7 +1787,6 @@ static void shrink_active_list(unsigned long nr_to_scan,
 
 	nr_taken = isolate_lru_pages(nr_to_scan, lruvec, &l_hold,
 				     &nr_scanned, sc, isolate_mode, lru);
-
 	if (global_reclaim(sc))
 		__mod_zone_page_state(zone, NR_PAGES_SCANNED, nr_scanned);
 
@@ -1975,7 +1933,6 @@ static bool inactive_list_is_low(struct lruvec *lruvec, enum lru_list lru)
 static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct scan_control *sc)
 {
-	//printk("In shrink_list\n");
 	if (is_active_lru(lru)) {
 		if (inactive_list_is_low(lruvec, lru))
 			shrink_active_list(nr_to_scan, lruvec, sc, lru);
@@ -2234,7 +2191,6 @@ static void shrink_lruvec(struct lruvec *lruvec, int swappiness,
 	struct blk_plug plug;
 	bool scan_adjusted;
 
-	
 	get_scan_count(lruvec, swappiness, sc, nr, lru_pages);
 
 	/* Record the original scan target for proportional adjustments later */
@@ -2338,8 +2294,6 @@ static void shrink_lruvec(struct lruvec *lruvec, int swappiness,
 				   sc, LRU_ACTIVE_ANON);
 
 	throttle_vm_writeout(sc->gfp_mask);
-	//printList(NULL,lruvec,LRU_ACTIVE_ANON);
-	//printList(NULL,lruvec,LRU_ACTIVE_FILE);
 }
 
 /* Use reclaim/compaction for costly allocs or under memory pressure */

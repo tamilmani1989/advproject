@@ -32,6 +32,7 @@
 #include <linux/export.h>
 #include <linux/swap.h>
 #include <linux/uio.h>
+
 static struct vfsmount *shm_mnt;
 
 #ifdef CONFIG_SHMEM
@@ -73,9 +74,6 @@ static struct vfsmount *shm_mnt;
 #include <asm/pgtable.h>
 
 #include "internal.h"
-#include <linux/mm_inline.h>
-
-extern int global_pagerep_algo;
 
 #define BLOCKS_PER_PAGE  (PAGE_CACHE_SIZE/512)
 #define VM_ACCT(size)    (PAGE_CACHE_ALIGN(size) >> PAGE_SHIFT)
@@ -1047,14 +1045,6 @@ static int shmem_replace_page(struct page **pagep, gfp_t gfp,
 	return error;
 }
 
-static void setReferenceTime(struct page *page)                 
-{       
-        struct timespec tp;                                     
-        get_monotonic_boottime(&tp);
-        page->refTime[0] = tp.tv_sec;
-        page->refTime[1] = 0;
-        page->heat = 0;                                         
-}   
 /*
  * shmem_getpage_gfp - find page in cache, or get from swap, or allocate
  *
@@ -1205,24 +1195,10 @@ repeat:
 			goto decused;
 		}
 
-                page->refTime[0] = 0;
-                page->refTime[1] = 0;
-                page->heat = 0;
-
 		__SetPageSwapBacked(page);
 		__set_page_locked(page);
-		
-
-		if(global_pagerep_algo == LRUK) {
-			if(sgp == SGP_WRITE){
-				setReferenceTime(page);
-				__SetPageReferenced(page);
-			}
-		}
-		else {
-			if (sgp == SGP_WRITE)
-				__SetPageReferenced(page);
-		}
+		if (sgp == SGP_WRITE)
+			__SetPageReferenced(page);
 
 		error = mem_cgroup_try_charge(page, current->mm, gfp, &memcg);
 		if (error)
