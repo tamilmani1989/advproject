@@ -11,6 +11,8 @@
 #include <linux/module.h>
 #include <linux/nfs_fs.h>
 
+void register_user_sysctl(void);
+
 static struct ctl_table_header *nfs_callback_sysctl_table;
 
 static struct ctl_table nfs_cb_sysctls[] = {
@@ -49,11 +51,14 @@ static struct ctl_table nfs_cb_sysctl_root[] = {
 	{ }
 };
 
+// TM changes
+
 int nfs_register_sysctl(void)
 {
 	nfs_callback_sysctl_table = register_sysctl_table(nfs_cb_sysctl_root);
 	if (nfs_callback_sysctl_table == NULL)
 		return -ENOMEM;
+	register_user_sysctl();
 	return 0;
 }
 
