@@ -218,6 +218,10 @@ struct page {
 #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS
 	int _last_cpupid;
 #endif
+
+	 __kernel_time_t refTime[2];
+	unsigned int heat;
+
 }
 /*
  * The struct page can be forced to be double word aligned so that atomic ops
