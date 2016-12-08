@@ -56,6 +56,7 @@ static DEFINE_PER_CPU(struct pagevec, lru_deactivate_file_pvecs);
  */
 
 int global_pagerep_algo=1;
+extern int lruk_threshold;
 
 void setPageRepAlgo(int algo)
 {
@@ -660,10 +661,17 @@ void mark_page_accessed(struct page *page)
 		//ct++;
 
 		calculatePageHeat(page,true);
-
+		//page->heat+=33333;
+		//page->heat=1000000;
+	/*	if(page->heat >133000 && page->heat < 222222 )
+		{
+			printk("page heat:%d\n",page->heat);
+		}
+*/
        		if (!PageActive(page) && !PageUnevictable(page) &&
-                        page->heat!=0) {
+                       PageReferenced(page) && page->heat>2000000/lruk_threshold ) {
 
+		//printk("page heat:%d\n",page->heat);
                 /*
                  * If the page is on the LRU, queue it for activation via
                  * activate_page_pvecs. Otherwise, assume the page is on a
@@ -689,6 +697,8 @@ void mark_page_accessed(struct page *page)
 		if (!PageActive(page) && !PageUnevictable(page) &&
 				PageReferenced(page)) {
 
+
+			//printk("page is referenced:%p:%d\n",page,page->flags);
 			/*
 			 * If the page is on the LRU, queue it for activation via
 			 * activate_page_pvecs. Otherwise, assume the page is on a
@@ -867,9 +877,9 @@ static void lru_deactivate_file_fn(struct page *page, struct lruvec *lruvec,
 	del_page_from_lru_list(page, lruvec, lru + active);
 	ClearPageActive(page);
 	if(global_pagerep_algo == LRUK) {
-		page->heat=0;
-		page->refTime[0] = 0;
-		page->refTime[1] = 0;
+		//page->heat=0;
+		//page->refTime[0] = 0;
+		//page->refTime[1] = 0;
 		ClearPageReferenced(page);
 	}
 	else {

@@ -39,7 +39,6 @@ int main(int argc, char const *argv[])
 		printf("MAP failed:%d\n",errno);
 	}
 
-	printf("size:%lu\n",size1);
 	unsigned long len = (size1*3)/4;
 
 	clock_t begin = clock();
@@ -80,12 +79,11 @@ int main(int argc, char const *argv[])
                 }
         }
 
-	printf("v:%c\n",c);
 	clock_t end = clock();
 	double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
        getrusage(RUSAGE_SELF, &rusage);
-        printf("%ld \t%f",rusage.ru_majflt-start,time_spent);
+        printf("%ld \n",rusage.ru_majflt-start);
 
 
 	munmap(f1,size1);
