@@ -33,29 +33,23 @@ static inline void calculatePageHeat(struct page *page, bool flag ) {
 	
 	__kernel_time_t diff;
 	struct timespec tp;
-	static struct page *prevPage=NULL;
-	if(page!=prevPage)
-	{
 	
-	#if 1
-		get_monotonic_boottime(&tp);
-		if(page->refTime[1]!=0) {
-			diff = tp.tv_sec - page->refTime[1];
-			if(diff == 0)
-				page->heat = 2000000;
-			else
-				page->heat = 2000000/diff;
+	get_monotonic_boottime(&tp);
+	if(page->refTime[1]!=0) {
+		diff = tp.tv_sec - page->refTime[1];
+		if(diff == 0)
+			page->heat = 2000000;
+		else
+			page->heat = 2000000/diff;
 		//printk("page heat:%d \t diff:%d \t cursec:%d \n",page->heat,diff,tp.tv_sec); 
-		}
+	}
 //			printk("Set page heat as 0\n");
 		if(flag==true)
 		{
 			page->refTime[1] = page->refTime[0];
 			page->refTime[0] = tp.tv_sec;
 		}
-	#endif
-	}
-	prevPage = page;
+//	}
 	
 }
 # if 0
