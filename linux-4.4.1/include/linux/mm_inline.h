@@ -17,10 +17,6 @@
  * needs to survive until the page is last deleted from the LRU, which
  * could be as far down as __page_cache_release.
  */
-
-
-
-
 static inline int page_is_file_cache(struct page *page)
 {
 	return !PageSwapBacked(page);

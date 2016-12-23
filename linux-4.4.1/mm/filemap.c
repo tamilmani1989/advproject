@@ -538,7 +538,6 @@ int replace_page_cache_page(struct page *old, struct page *new, gfp_t gfp_mask)
 
 		memcg = mem_cgroup_begin_page_stat(old);
 		spin_lock_irqsave(&mapping->tree_lock, flags);
-		printk("replace page cache called\n");
 		__delete_from_page_cache(old, NULL, memcg);
 		error = radix_tree_insert(&mapping->page_tree, offset, new);
 		BUG_ON(error);
@@ -683,8 +682,6 @@ int add_to_page_cache_lru(struct page *page, struct address_space *mapping,
 {
 	void *shadow = NULL;
 	int ret;
-	
-	//printk("Add to page cache lru called\n");
 
 	__set_page_locked(page);
 	ret = __add_to_page_cache_locked(page, mapping, offset,
@@ -1073,7 +1070,6 @@ repeat:
 		}
 	}
 out:
-
 	rcu_read_unlock();
 
 	return page;
@@ -1155,18 +1151,15 @@ struct page *pagecache_get_page(struct address_space *mapping, pgoff_t offset,
 
 repeat:
 	page = find_get_entry(mapping, offset);
-	if (radix_tree_exceptional_entry(page)){
+	if (radix_tree_exceptional_entry(page))
 		page = NULL;
-	}
 	if (!page)
 		goto no_page;
 
-	
 	if (fgp_flags & FGP_LOCK) {
 		if (fgp_flags & FGP_NOWAIT) {
 			if (!trylock_page(page)) {
 				page_cache_release(page);
-				printk("page flags  error\n");
 				return NULL;
 			}
 		} else {
@@ -1177,29 +1170,13 @@ repeat:
 		if (unlikely(page->mapping != mapping)) {
 			unlock_page(page);
 			page_cache_release(page);
-			printk("page mapping failed\n");
 			goto repeat;
 		}
 		VM_BUG_ON_PAGE(page->index != offset, page);
 	}
-        
 
-	if (page && (fgp_flags & FGP_ACCESSED)) {
-		//printk("Mark page accessed inside pagecache_get_page:%p\n",page);
-	 	
+	if (page && (fgp_flags & FGP_ACCESSED))
 		mark_page_accessed(page);
-		//page->heat+=100000;
-			
-	}
-	else
-	{
-		//if(page && global_pagerep_algo == LRUK)
-		//	calculatePageHeat(page,true);
-	}
-
-
-	//if(page->heat == 30000 && lruk_threshold == 320)
-	//	printk("Got it  Bro!!!\n");	
 
 no_page:
 	if (!page && (fgp_flags & FGP_CREAT)) {
@@ -1213,26 +1190,12 @@ no_page:
 		if (!page)
 			return NULL;
 
-
-	
-		//printk("Hello in getPage:%p\n",page);
 		if (WARN_ON_ONCE(!(fgp_flags & FGP_LOCK)))
 			fgp_flags |= FGP_LOCK;
 
-		if (global_pagerep_algo==LRUK) {
-			//	printk("ddddd\n");
-			//setReferenceTime(page);
-			 if (fgp_flags & FGP_ACCESSED)
-				__SetPageReferenced(page);
-
-		}
-		else {
 		/* Init accessed so avoid atomic mark_page_accessed later */
-					//page->heat+=100;
-			if (fgp_flags & FGP_ACCESSED)
-				__SetPageReferenced(page);
-		
-		}	
+		if (fgp_flags & FGP_ACCESSED)
+			__SetPageReferenced(page);
 
 		err = add_to_page_cache_lru(page, mapping, offset,
 				gfp_mask & GFP_RECLAIM_MASK);
@@ -1353,8 +1316,6 @@ repeat:
 		if (unlikely(!page))
 			continue;
 
-		//page->heat=223334;
-
 		if (radix_tree_exception(page)) {
 			if (radix_tree_deref_retry(page)) {
 				/*
@@ -1381,6 +1342,7 @@ repeat:
 			page_cache_release(page);
 			goto repeat;
 		}
+
 		pages[ret] = page;
 		if (++ret == nr_pages)
 			break;
@@ -1457,6 +1419,7 @@ repeat:
 			page_cache_release(page);
 			break;
 		}
+
 		pages[ret] = page;
 		if (++ret == nr_pages)
 			break;
@@ -1528,6 +1491,7 @@ repeat:
 			page_cache_release(page);
 			goto repeat;
 		}
+
 		pages[ret] = page;
 		if (++ret == nr_pages)
 			break;
@@ -1670,12 +1634,8 @@ page_ok:
 		 * When a sequential read accesses a page several times,
 		 * only mark it as accessed the first time.
 		 */
-		if (prev_index != index || offset != prev_offset){
-			//printk("Mark page accessed inside generic:%p\n",page);
-			//page->heat+=100;
+		if (prev_index != index || offset != prev_offset)
 			mark_page_accessed(page);
-		}
-
 		prev_index = index;
 
 		/*
@@ -1776,12 +1736,6 @@ no_cached_page:
 			error = -ENOMEM;
 			goto out;
 		}
-
-		//printk("In generic file read:%p\n",page);
-
-                //page->heat = 0;
-		
-
 		error = add_to_page_cache_lru(page, mapping, index,
 				mapping_gfp_constraint(mapping, GFP_KERNEL));
 		if (error) {
@@ -1884,25 +1838,12 @@ static int page_cache_read(struct file *file, pgoff_t offset)
 		if (!page)
 			return -ENOMEM;
 
-		//page->heat=0;
-		
-	
-		
-
-
-//		printk("allocate new page:%p\n",page);
-
 		ret = add_to_page_cache_lru(page, mapping, offset,
 				mapping_gfp_constraint(mapping, GFP_KERNEL));
-
-
 		if (ret == 0)
 			ret = mapping->a_ops->readpage(file, page);
-
-
 		else if (ret == -EEXIST)
 			ret = 0; /* losing race to add is OK */
-
 
 		page_cache_release(page);
 
@@ -2023,7 +1964,6 @@ int filemap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	 */
 	page = find_get_page(mapping, offset);
 	if (likely(page) && !(vmf->flags & FAULT_FLAG_TRIED)) {
-		//printk("page in page cache:%p\n",page);
 		/*
 		 * We found the page, so try async readahead before
 		 * waiting for the lock.
@@ -2186,7 +2126,6 @@ repeat:
 		goto next;
 unlock:
 		unlock_page(page);
-	//	page->heat+=10000;
 skip:
 		page_cache_release(page);
 next:
@@ -2292,11 +2231,7 @@ repeat:
 		page = __page_cache_alloc(gfp | __GFP_COLD);
 		if (!page)
 			return ERR_PTR(-ENOMEM);
-	        
-
-
 		err = add_to_page_cache_lru(page, mapping, index, gfp);
-
 		if (unlikely(err)) {
 			page_cache_release(page);
 			if (err == -EEXIST)
@@ -2329,8 +2264,6 @@ retry:
 	page = __read_cache_page(mapping, index, filler, data, gfp);
 	if (IS_ERR(page))
 		return page;
-
-
 	if (PageUptodate(page))
 		goto out;
 
@@ -2354,14 +2287,7 @@ retry:
 			return page;
 	}
 out:
-	//printk("Mark page accessed inside do_read_cache_page:%p\n",page);
-	//page->heat+=2;
 	mark_page_accessed(page);
-/*	if(global_pagerep_algo==LRUK)
-	{
-		calculatePageHeat(page,true);
-	}
-*/
 	return page;
 }
 

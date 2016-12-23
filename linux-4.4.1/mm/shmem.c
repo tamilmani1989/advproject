@@ -32,6 +32,7 @@
 #include <linux/export.h>
 #include <linux/swap.h>
 #include <linux/uio.h>
+
 static struct vfsmount *shm_mnt;
 
 #ifdef CONFIG_SHMEM
@@ -312,9 +313,6 @@ static int shmem_add_to_page_cache(struct page *page,
 	else
 		error = shmem_radix_tree_replace(mapping, index, expected,
 								 page);
-
-	//calculatePageHeat(page,true);
-
 	if (!error) {
 		mapping->nrpages++;
 		__inc_zone_page_state(page, NR_FILE_PAGES);
@@ -1038,7 +1036,6 @@ static int shmem_replace_page(struct page **pagep, gfp_t gfp,
 	} else {
 		mem_cgroup_replace_page(oldpage, newpage);
 		lru_cache_add_anon(newpage);
-		//calculatePageHeat(newpage,true);
 		*pagep = newpage;
 	}
 
@@ -1095,10 +1092,9 @@ repeat:
 		goto unlock;
 	}
 
-	if (page && sgp == SGP_WRITE){
-		//calculatePageHeat(page,true);
+	if (page && sgp == SGP_WRITE)
 		mark_page_accessed(page);
-	}
+
 	/* fallocated page? */
 	if (page && !PageUptodate(page)) {
 		if (sgp != SGP_READ)
@@ -1183,9 +1179,8 @@ repeat:
 		shmem_recalc_inode(inode);
 		spin_unlock(&info->lock);
 
-		if (sgp == SGP_WRITE){
+		if (sgp == SGP_WRITE)
 			mark_page_accessed(page);
-		}
 
 		delete_from_swap_cache(page);
 		set_page_dirty(page);
@@ -1211,14 +1206,9 @@ repeat:
 			goto decused;
 		}
 
-                //page->refTime[0] = 0;
-                //page->refTime[1] = 0;
-                //page->heat = 0;
-
 		__SetPageSwapBacked(page);
 		__set_page_locked(page);
 		
-		//printk("inshmem:%p\n",page);
 		if(global_pagerep_algo == LRUK) {
 			if(sgp == SGP_WRITE){
 				setReferenceTime(page);
@@ -1246,7 +1236,7 @@ repeat:
 		}
 		mem_cgroup_commit_charge(page, memcg, false);
 		lru_cache_add_anon(page);
-		//calculatePageHeat(page,true);
+
 		spin_lock(&info->lock);
 		info->alloced++;
 		inode->i_blocks += BLOCKS_PER_PAGE;
@@ -1639,10 +1629,8 @@ static ssize_t shmem_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
 			/*
 			 * Mark the page accessed if we read the beginning.
 			 */
-			if (!offset){
-				//calculatePageHeat(page,true);
+			if (!offset)
 				mark_page_accessed(page);
-			}
 		} else {
 			page = ZERO_PAGE(0);
 			page_cache_get(page);

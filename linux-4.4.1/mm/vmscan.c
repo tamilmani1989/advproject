@@ -805,7 +805,6 @@ enum page_references {
 	PAGEREF_ACTIVATE,
 };
 
- 
 static enum page_references page_check_references(struct page *page,
 						  struct scan_control *sc)
 {
@@ -1370,7 +1369,6 @@ int __isolate_lru_page(struct page *page, isolate_mode_t mode)
 	return ret;
 }
 
-
 /*
  * zone->lru_lock is heavily contended.  Some of the functions that
  * shrink the lists perform better by taking out a batch of pages
@@ -1417,6 +1415,7 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
 			list_move(&page->lru, dst);
 			nr_taken += nr_pages;
 			break;
+
 		case -EBUSY:
 			/* else it is being freed elsewhere */
 			list_move(&page->lru, src);
@@ -1546,7 +1545,6 @@ putback_inactive_pages(struct lruvec *lruvec, struct list_head *page_list)
 
 		SetPageLRU(page);
 		lru = page_lru(page);
-
 		add_page_to_lru_list(page, lruvec, lru);
 
 		if (is_active_lru(lru)) {
@@ -1627,7 +1625,6 @@ shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
 
 	spin_lock_irq(&zone->lru_lock);
 
-	
 	nr_taken = isolate_lru_pages(nr_to_scan, lruvec, &page_list,
 				     &nr_scanned, sc, isolate_mode, lru);
 
@@ -1815,8 +1812,6 @@ static void shrink_active_list(unsigned long nr_to_scan,
 	int file = is_file_lru(lru);
 	struct zone *zone = lruvec_zone(lruvec);
 
-	//printk("in shrink_active_list\n");
-	
 	lru_add_drain();
 
 	if (!sc->may_unmap)
@@ -1828,7 +1823,6 @@ static void shrink_active_list(unsigned long nr_to_scan,
 
 	nr_taken = isolate_lru_pages(nr_to_scan, lruvec, &l_hold,
 				     &nr_scanned, sc, isolate_mode, lru);
-
 	if (global_reclaim(sc))
 		__mod_zone_page_state(zone, NR_PAGES_SCANNED, nr_scanned);
 
@@ -1975,7 +1969,6 @@ static bool inactive_list_is_low(struct lruvec *lruvec, enum lru_list lru)
 static unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct scan_control *sc)
 {
-	//printk("In shrink_list\n");
 	if (is_active_lru(lru)) {
 		if (inactive_list_is_low(lruvec, lru))
 			shrink_active_list(nr_to_scan, lruvec, sc, lru);
@@ -2234,7 +2227,6 @@ static void shrink_lruvec(struct lruvec *lruvec, int swappiness,
 	struct blk_plug plug;
 	bool scan_adjusted;
 
-	
 	get_scan_count(lruvec, swappiness, sc, nr, lru_pages);
 
 	/* Record the original scan target for proportional adjustments later */
@@ -2338,8 +2330,6 @@ static void shrink_lruvec(struct lruvec *lruvec, int swappiness,
 				   sc, LRU_ACTIVE_ANON);
 
 	throttle_vm_writeout(sc->gfp_mask);
-	//printList(NULL,lruvec,LRU_ACTIVE_ANON);
-	//printList(NULL,lruvec,LRU_ACTIVE_FILE);
 }
 
 /* Use reclaim/compaction for costly allocs or under memory pressure */
