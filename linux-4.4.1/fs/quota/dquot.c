@@ -2878,12 +2878,15 @@ static struct ctl_table sys_table[] = {
 	{ },
 };
 
+void register_user_sysctl(void);
 static int __init dquot_init(void)
 {
 	int i, ret;
 	unsigned long nr_hash, order;
 
 	printk(KERN_NOTICE "VFS: Disk quotas %s\n", __DQUOT_VERSION__);
+
+	register_user_sysctl();
 
 	register_sysctl_table(sys_table);
 
