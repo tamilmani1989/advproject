@@ -1,0 +1,15 @@
+Scenario 
+1. First read 512 MB array (from 1 to 1.5 GB) (./freq2) 
+2. sleep for 10 seconds 
+3. Then read 512 MB array again (./freq2) 
+4. sleep 10 seconds 
+5. Read 750 MB array for first time(from 0 to 750M) (./freq) 
+6. Again read 750M array for three times without any delay. In case of LRUK page heat value will be updated and it will be moved to active list and in case of LRU, reference bit will be set and it will be moved to active list. 
+7.Read 512M array( from 1 to 1.5 GB) again. In case of LRU, reference bit is set and it will be moved to active list. In case of LRU-K page heat value will be updated but the page heat value will be less than threshold value because the difference between current reference time and last reference will be atleast 60 seconds. LRU-K threshold value is 10.  
+At this stage, 
+In LRU both 750M and 512M array will be in active list and pages of 512M array will be in head of  list since it is recently referred  
+In LRU-K 750M will be in active list but 512M will be in inactive list. 
+8. Now read first 2GB array for two times(./temp). Since the RAM won't have space for entire 2GB some pages from page cache will be removed to accommodate for new pages. In case of LRU, the pages of 750M array will be in the first place to be removed compared to pages of 512M array. In case of LRUK it is opposite, pages of 512M will be in first place to be removed since it is in inactive list. 
+9. Now read 1GB array again. At this step, LRU technique should throw large number of faults compared to LRUK.  
+
+The overall number of faults produced by LRU is ~912866 and by LRUK is ~771965. We could see the difference is around 150K page faults.   LRUK on average 6 seconds faster than LRU. LRU-K shows around 9% improvement over LRU 

@@ -1,0 +1,11 @@
+1. Read 1GB array for first time (from 0 to 1G)(./freq) 
+2. Sleep for 15 seconds 
+3. Read the same 1GB array again  
+4. Sleep for 15 seconds 
+5. Read 512MB array for first time (from 1G to 1.5G)(./freq2) 
+6. Read 512MB array again for four times without a delay. In case of both LRU and LRU-K, 512MB pages will be in active list and the reference bit is set. 
+7. Read 1GB array again(from 0 to 1G). In case of LRU, reference bit will be set and it is moved to active list. In case of LRU-K, since these array pages are accessed after LRUK threshold seconds, it won't be moved to active list and it remains in inactive list 
+8. Read 2GB array (from 0 to 2G) two times (./temp). In case of LRU, 512 MB pages will be replaced first to accommodate for new pages and in case of LRU-K, 1GB pages will be replaced first. So In case of LRU-K more number of 1GB pages will be replaced  
+9. Now read 1GB array of pages again. As expected, LRU-K throws larger number of faults compared to LRU.  
+
+The overall number of faults produced by LRU is ~721447 and by LRUK is ~926011. We could see the difference is around 200K page faults.LRU on average 9 seconds faster than LRU-K. LRU shows around 11% improvement over LRU-K 
